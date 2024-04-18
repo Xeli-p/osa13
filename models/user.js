@@ -1,30 +1,47 @@
-const mongoose = require('mongoose')
+const { Model, DataTypes } = require('sequelize')
 
-const userSchema = mongoose.Schema({
-    username:{
-        type: String,
-        required: true,
-        unique: true
-    },
-    name: String,
-    passwordHash: String,
-    blogs: [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Blog'
-        }
-    ],
-})
+const { sequelize } = require('../util/db')
 
-userSchema.set('toJSON', {
-    transform: (document, returnedObject) => {
-        returnedObject.id = returnedObject._id.toString()
-        delete returnedObject._id
-        delete returnedObject.__v
-        delete returnedObject.passwordHash
+class User extends Model {}
+
+User.init({
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  username: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false,
+    validate: {
+        isEmail: true
     }
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  disabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  }
+}, {
+  sequelize,
+  underscored: true,
+  timestamps: true,
+  modelName: 'user'
 })
-
-const User = mongoose.model('User', userSchema)
 
 module.exports = User

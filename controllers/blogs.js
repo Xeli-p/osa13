@@ -1,96 +1,69 @@
-const blogRouter = require('express').Router()
-const blogNote = require('../models/blogNote')
+const router = require('express').Router()
+const { Blog, User } = require('../models')
+const { Op } = require('sequelize')
+const { tokenExtractor } = require('../util/middleware')
 
+router.get('/', async (req, res) => {
+  let where = {}
 
-blogRouter.get('/', async (request, response) => {
-
-    const blogs = await blogNote
-    .find({}).populate('user', { username: 1, name: 1 })
-
-    if (blogs) {
-        response.json(blogs)
-    } else {
-        response.status(404)
-    }
-})
-
-blogRouter.get('/:id', async (request, response) => {
-
-    const blog = await blogNote.findById(request.params.id).populate('user', { username: 1, name: 1 })
-
-    if (blog) {
-        response.json(blog)
-    } else {
-        response.status(404)
-    }
-})
-
-blogRouter.delete('/:id', async (request, response) => {
-    const user = request.user
-    const blog = await blogNote.findById(request.params.id).populate('user')
-    if (!blog) {
-        return response.status(404).json({ error: 'Blog not found' });
-      }
-    if (user.id.toString() !== blog.user.id.toString()) {
-      return response.status(401).json({ error: 'token invalid' })
-    }
-    await blogNote.findByIdAndDelete(request.params.id)
-    response.status(204).end()
-})
-
-blogRouter.put('/:id', async (request, response) => {
-    const body = request.body;
-    const update = await blogNote.findByIdAndUpdate(request.params.id, body);
-
-    if (!update) {
-        return response.status(404).json({ error: 'Blog not found' });
-    }
-
-    response.status(204).end();
-});
-
-
-blogRouter.post('/', async (request, response) => {
-    const body = request.body
-    const user = request.user
-
-  if (!user) {
-    return response.status(401).json({ error: 'user not found' });
-  }
-    const blog = new blogNote(
+  if (req.query.search) {
+      where = {[Op.or]:[
         {
-            author: body.author,
-            title: body.title,
-            url: body.url,
-            likes: body.likes === undefined ? 0 : body.likes,
-            user: user.id
+          title: {
+            [Op.substring]: req.query.search
+          }
+        },
+        {
+          author: {
+            [Op.substring]: req.query.search
+          }
         }
-    )
-    const savedBlog = await blog.save();
-    user.blogs = user.blogs.concat(savedBlog.id)
-    await user.save()
-    response.status(201).json(savedBlog);
-});
-
-blogRouter.post('/:id/comments', async (request, response) => {
-    try {
-        const blogId = request.params.id;
-        const commentText = request.body.comment;
-
-        const blog = await blogNote.findById(blogId);
-
-        if (!blog) {
-            return response.status(404).json({ error: 'Blog not found' });
-        }
-
-        blog.comments.push( String(commentText) );
-        const updatedBlog = await blog.save();
-
-        response.status(201).json(updatedBlog);
-    } catch (error) {
-        console.error(error);
-        response.status(500).json({ error: 'Internal Server Error' });
+      ]}
     }
-});
+  
 
-module.exports = blogRouter
+    const blogs = await Blog.findAll({
+        attributes: { exclude: ['userId'] },
+        include: {
+            model: User,
+            attributes: ['name']
+        },
+        where,
+        order: [
+          ['likes', 'DESC']
+        ]
+    })
+    res.json(blogs)
+})
+
+router.post('/', tokenExtractor, async (req, res) => {
+    console.log(req.body)
+    const user = await User.findByPk(req.decodedToken.id)
+    const blog = await Blog.create({ ...req.body, userId: user.id, date: new Date()})
+    res.json(blog)
+})
+
+router.put('/:id', async (req, res) => {
+    console.log(req.body)
+    const blog = await Blog.findByPk(req.params.id)
+    blog.likes = req.body.likes
+    await blog.save()
+    res.status(200).json(blog)
+})
+
+router.delete('/:id', tokenExtractor, async (req,res) => {
+    const blog = await Blog.findByPk(req.params.id)
+    if (!blog || !blog.userId) {
+        res.status(404).json({error: "no blog or blog user found"})
+    }
+    const user = await User.findByPk(req.decodedToken.id)
+    console.log(`req id: ${req.decodedToken.id} blog user: ${blog.userId}`)
+    if (user.id === blog.userId) {
+        await blog.destroy()
+        res.status(204).json({})
+    } else {
+      res.status(400).json({error:"not a match"})
+    }
+})
+
+module.exports = router
