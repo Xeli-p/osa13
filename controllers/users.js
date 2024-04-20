@@ -1,8 +1,5 @@
 const router = require('express').Router()
-
-const { User, Blog, Readinglist } = require('../models')
-
-const { Op } = require('sequelize')
+const { User, Blog } = require('../models')
 
 router.get('/', async (req, res) => {
 
@@ -56,7 +53,6 @@ router.get('/:id', async (req, res) => {
     }
   }
   
-
   const user = await User.findByPk(req.params.id, {
     exclude: ['blogs'],
     include: 

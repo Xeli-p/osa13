@@ -1,7 +1,5 @@
 const { Model, DataTypes } = require('sequelize')
-
 const { sequelize } = require('../util/db')
-
 
 class Blog extends Model {}
 
@@ -53,7 +51,5 @@ Blog.init({
   timestamps: false,
   modelName: 'blog'
 })
-
-// Blog.sync()
 
 module.exports = Blog
